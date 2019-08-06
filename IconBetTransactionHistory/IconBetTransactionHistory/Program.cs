@@ -12,6 +12,7 @@ using Telegram.Bot.Types.ReplyMarkups;
 using System.Timers;
 using System.Threading;
 using System.Net.Http;
+using System.Numerics;
 
 namespace IconBetTransactionHistory
 {
@@ -84,7 +85,7 @@ namespace IconBetTransactionHistory
             var message = "";
             foreach (var tran in transactionList)
             {
-                if (count == numberOfBets-1)
+                if (count == numberOfBets)
                 {
                     // after we have found the first 10 bets jump out of the loop
                     break;
@@ -154,9 +155,16 @@ namespace IconBetTransactionHistory
 
                             if (transactionResultModel.Indexed[0].Contains("BetPlaced"))
                             {
-                                var bigInteger = Convert.ToInt64(transactionResultModel.Indexed[1], 16).ToString();
+                                var betAmont = transactionResultModel.Indexed[1];
+                                if (betAmont.StartsWith("0x"))
+                                {
+                                    betAmont = betAmont.Substring(2, betAmont.Length - 2);
+                                }
 
-                                var amountBet = NumericHelper.Loop2ICX(bigInteger);
+                                BigInteger number = BigInteger.Parse(betAmont, System.Globalization.NumberStyles.AllowHexSpecifier);
+
+
+                                var amountBet = NumericHelper.Loop2ICX(number.ToString());
 
                                 message += $"Amount placed {amountBet} ICX \n";
                             }
@@ -169,8 +177,15 @@ namespace IconBetTransactionHistory
 
                             if (transactionResultModel.Indexed[0].Contains("ICXTransfer"))
                             {
-                                var bigInteger = Convert.ToInt64(transactionResultModel.Indexed[3], 16).ToString();
-                                var amountWon = NumericHelper.Loop2ICX(bigInteger);
+                                var betWinings = transactionResultModel.Indexed[3];
+
+                                if (betWinings.StartsWith("0x"))
+                                {
+                                    betWinings = betWinings.Substring(2, betWinings.Length - 2);
+                                }
+
+                                BigInteger number = BigInteger.Parse(betWinings, System.Globalization.NumberStyles.AllowHexSpecifier);
+                                var amountWon = NumericHelper.Loop2ICX(number.ToString());
                                 message += $"You won {amountWon} ICX \n";
                             }
 
@@ -344,18 +359,25 @@ namespace IconBetTransactionHistory
         {
             SendTelegram("Fetching results...please wait..", chatId);
 
-            var transactionList = new List<IconBetModel>();
+            try
+            {
+                var transactionList = new List<IconBetModel>();
 
-            var currentPageCount = GetPageCount();
-            var transactionDataOnFile = GetTransactionList();
-            GetRecentTransactionList(currentPageCount, out int newPageCount, out transactionList);
+                var currentPageCount = GetPageCount();
+                var transactionDataOnFile = GetTransactionList();
+                GetRecentTransactionList(currentPageCount, out int newPageCount, out transactionList);
 
-            var combinedTransactions = transactionDataOnFile.Concat(transactionList).ToList();
+                var combinedTransactions = transactionDataOnFile.Concat(transactionList).ToList();
 
-            LoadTransactions(publicAddress, combinedTransactions, chatId, 10);
+                LoadTransactions(publicAddress, combinedTransactions, chatId, 10);
 
-            //update the Data file containing transactions
-            InsertTransactionRecords(combinedTransactions, newPageCount);
+                //update the Data file containing transactions
+                InsertTransactionRecords(combinedTransactions, newPageCount);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.ToString());
+            }
         }
     }
 }
