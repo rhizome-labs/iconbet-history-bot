@@ -84,6 +84,11 @@ namespace IconBetTransactionHistory
             var message = "";
             foreach (var tran in transactionList)
             {
+                if (count == numberOfBets-1)
+                {
+                    // after we have found the first 10 bets jump out of the loop
+                    break;
+                }
                 foreach (var d in tran.data)
                 {
                     transactionTotal++;

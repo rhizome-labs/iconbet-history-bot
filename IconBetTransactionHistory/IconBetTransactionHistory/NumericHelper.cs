@@ -3,26 +3,31 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using System.Text;
-using System.Threading.Tasks;
-
 namespace IconBetTransactionHistory
 {
     public static class NumericHelper
     {
-       public static string Loop2ICX(string bigInt, int wholeNumberLength, bool trimTrailing = true)
+        private static int FloatingPointLength = 18;
+
+        public static string Loop2ICX(string bigInt, bool trimTrailing = true)
         {
             var result = string.Empty;
             var str = bigInt;
 
-            if(wholeNumberLength >= 0)
+            var padded = str.PadLeft(FloatingPointLength, '0');
+            if (padded.Length <= FloatingPointLength)
             {
-                str = str.PadLeft(wholeNumberLength, '0');
-                var wholeNum = str.Substring(0, wholeNumberLength);
-                var floatNum = str.Length > wholeNumberLength ? str.Substring(wholeNumberLength) : "0";
-                result = wholeNum + "." + floatNum;
-                result = result.TrimStart(new char[] { '0' });
+                result = "0." + padded;
             }
+            else
+            {
+                var wholeNumberLength = padded.Length - FloatingPointLength;
+                var wholeNum = padded.Substring(0, wholeNumberLength);
+                var floating = padded.Substring(wholeNumberLength + 1);
 
+                result = wholeNum + "." + floating;
+
+            }
 
             if (trimTrailing)
             {
@@ -36,5 +41,6 @@ namespace IconBetTransactionHistory
 
             return result;
         }
+
     }
 }
