@@ -56,16 +56,18 @@ namespace IconBetTransactionHistory
                 timer.Stop();
                 Console.WriteLine("Retrieving most recent transactions on the Blockchain");
 
-                var transactionList = new List<IconBetModel>();
+                var transactionList = new List<IconTransactionModel>();
 
                 var currentPageCount = GetPageCount();
                 Console.WriteLine($"Page Count on file: {currentPageCount}");
                 var transactionDataOnFile = GetTransactionList();
-                GetRecentTransactionList(currentPageCount, out int newPageCount, out transactionList);
+                var newPageCount = GetNumNewPages(currentPageCount);
+                GetRecentTransactionList(newPageCount, out transactionList);
                 Console.WriteLine($"Current Page Count: {newPageCount}");
 
-                var combinedTransactions = transactionDataOnFile.Concat(transactionList).ToList();
-                InsertTransactionRecords(combinedTransactions, newPageCount);
+                transactionDataOnFile.InsertRange(0, transactionList);
+
+                InsertTransactionRecords(transactionDataOnFile, newPageCount + currentPageCount);
             }
             catch { }
             finally
@@ -75,158 +77,188 @@ namespace IconBetTransactionHistory
         }
 
 
-        public static void LoadTransactions(string publicAddress, List<IconBetModel> transactionList, long chatId, int numberOfBets)
+        public static void LoadTransactions(string publicAddress, List<IconTransactionModel> transactionList, long chatId, int numberOfBets)
         {
             Console.WriteLine($"{DateTime.Now.ToLocalTime()}: Loading bet history for: {publicAddress} ");
 
             // Open the stream using a StreamReader for easy access.
-            var count = 0;
-            var transactionTotal = 0;
             var message = "";
-            foreach (var tran in transactionList)
+
+            var transactionsByAddress = (from tranList in transactionList
+                                         from dataList in tranList.data
+                                         where dataList.fromAddr == publicAddress
+                                         select dataList.txHash).ToList().Take(numberOfBets);
+
+
+            foreach (var transaction in transactionsByAddress)
             {
-                if (count == numberOfBets)
+
+                var getTransactionByHash = new GetTransactionByHash(Consts.ApiUrl.MainNet);
+                var result = getTransactionByHash.Invoke(transaction).Result;
+
+                var json = JsonConvert.SerializeObject(result.Transaction.Data);
+                var betModel = JsonConvert.DeserializeObject<BetModel>(json.Replace("params", "param"));
+
+                var getTransactionResult = GetTransactionResult.Create(Consts.ApiUrl.MainNet);
+                var transactionResult = getTransactionResult(transaction).Result;
+
+                message += $"Bet Type: {betModel.method}\n";
+
+                if (betModel.method.Contains("number"))
                 {
-                    // after we have found the first 10 bets jump out of the loop
-                    break;
+
+                    message += $"Numbers Placed: {betModel.param.numbers} \n";
                 }
-                foreach (var d in tran.data)
+
+
+                if (betModel.method.Contains("color"))
                 {
-                    transactionTotal++;
-                    if (d.fromAddr == publicAddress && count < numberOfBets)
+
+                    var color = string.Empty;
+                    switch (betModel.param.color)
                     {
-                        count++;
-                        var getTransactionByHash = new GetTransactionByHash(Consts.ApiUrl.MainNet);
-                        var result = getTransactionByHash.Invoke(d.txHash).Result;
+                        case 0:
+                            color = "Black";
+                            break;
+                        case 1:
+                            color = "Red";
+                            break;
+                    }
 
-                        var json = JsonConvert.SerializeObject(result.Transaction.Data);
-                        var betModel = JsonConvert.DeserializeObject<BetModel>(json.Replace("params", "param"));
+                    message += $"Bet Option Placed: {color}\n";
+                }
 
-                        var getTransactionResult = GetTransactionResult.Create(Consts.ApiUrl.MainNet);
-                        var transactionResult = getTransactionResult(d.txHash).Result;
+                if (betModel.method.Contains("even_odd"))
+                {
+                    var even_odd = string.Empty;
 
-                        message += $"Bet Type: {betModel.method}\n";
+                    switch (betModel.param.even_odd)
+                    {
+                        case 0:
+                            even_odd = "Even";
+                            break;
+                        case 1:
+                            even_odd = "Odd";
+                            break;
+                    }
 
-                        if (betModel.method.Contains("number"))
+                    message += $"Bet Option Placed: {even_odd}\n";
+                }
+                bool win = false;
+                var amountBet = string.Empty;
+                foreach (var log in transactionResult.EventLogs)
+                {
+                    var eventTransactionString = JsonConvert.SerializeObject(log);
+                    var transactionResultModel = JsonConvert.DeserializeObject<TransactionResultModel>(eventTransactionString);
+
+                    if (transactionResultModel.Indexed[0].Contains("BetPlaced"))
+                    {
+                        var betAmount = transactionResultModel.Indexed[1];
+                        if (betAmount.StartsWith("0x"))
                         {
-
-                            message += $"Numbers Placed: {betModel.param.numbers} \n";
+                            betAmount = betAmount.Substring(2, betAmount.Length - 2);
                         }
 
+                        BigInteger number = BigInteger.Parse("00" + betAmount, System.Globalization.NumberStyles.AllowHexSpecifier);
 
-                        if (betModel.method.Contains("color"))
+
+                        amountBet = NumericHelper.Loop2ICX(number.ToString());
+
+                        message += $"Amount placed {amountBet} ICX \n";
+                    }
+
+
+                    if (transactionResultModel.Indexed[0].Contains("BetResult"))
+                    {
+                        message += $"Wheel stopped on number: {transactionResultModel.Indexed[2]}\n";
+                    }
+
+                    if (transactionResultModel.Indexed[0].Contains("ICXTransfer"))
+                    {
+                        var betWinings = transactionResultModel.Indexed[3];
+
+                        if (betWinings.StartsWith("0x"))
                         {
-
-                            var color = string.Empty;
-                            switch (betModel.param.color)
-                            {
-                                case 0:
-                                    color = "Black";
-                                    break;
-                                case 1:
-                                    color = "Red";
-                                    break;
-                            }
-
-                            message += $"Bet Option Placed: {color}\n";
+                            betWinings = betWinings.Substring(2, betWinings.Length - 2);
                         }
 
-                        if (betModel.method.Contains("even_odd"))
+                        BigInteger number = BigInteger.Parse("00" + betWinings, System.Globalization.NumberStyles.AllowHexSpecifier);
+                        var amountWon = NumericHelper.Loop2ICX(number.ToString());
+
+                        var winTakeBet = Convert.ToDecimal(amountWon) - Convert.ToDecimal(amountBet);
+                        message += $"You won {winTakeBet} ICX \n";
+                    }
+
+                    foreach (var eventData in log.Data)
+                    {
+                        if (eventData.ToUpper().Contains("WINNINGS"))
                         {
-                            var even_odd = string.Empty;
-
-                            switch (betModel.param.even_odd)
-                            {
-                                case 0:
-                                    even_odd = "Even";
-                                    break;
-                                case 1:
-                                    even_odd = "Odd";
-                                    break;
-                            }
-
-                            message += $"Bet Option Placed: {even_odd}\n";
+                            win = true;
+                            break;
                         }
-                        bool win = false;
-                        foreach (var log in transactionResult.EventLogs)
-                        {
-                            var eventTransactionString = JsonConvert.SerializeObject(log);
-                            var transactionResultModel = JsonConvert.DeserializeObject<TransactionResultModel>(eventTransactionString);
-
-                            if (transactionResultModel.Indexed[0].Contains("BetPlaced"))
-                            {
-                                var betAmont = transactionResultModel.Indexed[1];
-                                if (betAmont.StartsWith("0x"))
-                                {
-                                    betAmont = betAmont.Substring(2, betAmont.Length - 2);
-                                }
-
-                                BigInteger number = BigInteger.Parse(betAmont, System.Globalization.NumberStyles.AllowHexSpecifier);
-
-
-                                var amountBet = NumericHelper.Loop2ICX(number.ToString());
-
-                                message += $"Amount placed {amountBet} ICX \n";
-                            }
-
-
-                            if (transactionResultModel.Indexed[0].Contains("BetResult"))
-                            {
-                                message += $"Wheel stopped on number: {transactionResultModel.Indexed[2]}\n";
-                            }
-
-                            if (transactionResultModel.Indexed[0].Contains("ICXTransfer"))
-                            {
-                                var betWinings = transactionResultModel.Indexed[3];
-
-                                if (betWinings.StartsWith("0x"))
-                                {
-                                    betWinings = betWinings.Substring(2, betWinings.Length - 2);
-                                }
-
-                                BigInteger number = BigInteger.Parse(betWinings, System.Globalization.NumberStyles.AllowHexSpecifier);
-                                var amountWon = NumericHelper.Loop2ICX(number.ToString());
-                                message += $"You won {amountWon} ICX \n";
-                            }
-
-                            foreach (var eventData in log.Data)
-                            {
-                                if (eventData.ToUpper().Contains("WINNINGS"))
-                                {
-                                    win = true;
-                                    break;
-                                }
-                            }
-                        }
-
-                        if (win)
-                        {
-                            message += "Bet Result: WIN!\n";
-                        }
-                        else
-                        {
-                            message += "Bet Result: LOST!\n";
-                        }
-
-                        message += "-----------------------------------------\n";
                     }
                 }
+
+                if (win)
+                {
+                    message += "Bet Result: WIN!\n";
+                }
+                else
+                {
+                    message += "Bet Result: LOST!\n";
+                }
+
+                message += "-----------------------------------------\n";
 
             }
             SendTelegram(message, chatId);
         }
 
-        public static void GetRecentTransactionList(int pageCount, out int newPageCount, out List<IconBetModel> transactionListOut)
+        public static int GetNumNewPages(int lastPageCount)
+        {
+
+            if (lastPageCount == 1)
+            {
+                return 1;
+            }
+
+            bool data = true;
+            int newPageCount = 0;
+            while (data)
+            {
+                var result = client.GetAsync("https://tracker.icon.foundation/v3/contract/txList?page=" + lastPageCount + "&count=10000&addr=cx1b97c1abfd001d5cd0b5a3f93f22cccfea77e34e").Result;
+                var responseBody = result.Content.ReadAsStringAsync().Result;
+
+                var iconBetTransactions = JsonConvert.DeserializeObject<IconTransactionModel>(responseBody);
+
+                if (iconBetTransactions.description != "success")
+                {
+                    data = false;
+                }
+                else
+                {
+                    lastPageCount++;
+                    newPageCount++;
+                }
+
+            }
+
+
+            return newPageCount;
+        }
+
+        public static void GetAll()
         {
             bool data = true;
-            var transactionList = new List<IconBetModel>();
+            var transactionList = new List<IconTransactionModel>();
+            int pageCount = 1;
 
             while (data)
             {
-                var result = client.GetAsync("https://tracker.icon.foundation/v3/contract/txList?page=" + pageCount + "&count=10000&addr=cx1b97c1abfd001d5cd0b5a3f93f22cccfea77e34e").Result;
+                var result = client.GetAsync("https://tracker.icon.foundation/v3/contract/txList?page=" + pageCount + "&count=1000&addr=cx1b97c1abfd001d5cd0b5a3f93f22cccfea77e34e").Result;
                 var responseBody = result.Content.ReadAsStringAsync().Result;
 
-                var iconBetTransactions = JsonConvert.DeserializeObject<IconBetModel>(responseBody);
+                var iconBetTransactions = JsonConvert.DeserializeObject<IconTransactionModel>(responseBody);
 
                 if (iconBetTransactions.description != "success")
                 {
@@ -239,11 +271,32 @@ namespace IconBetTransactionHistory
                 }
 
             }
-            transactionListOut = transactionList;
-            newPageCount = pageCount;
+
+            InsertTransactionRecords(transactionList, pageCount);
         }
 
-        public static void InsertTransactionRecords(List<IconBetModel> transactionList, int pageCount)
+
+        public static void GetRecentTransactionList(int pageCount, out List<IconTransactionModel> transactionListOut)
+        {
+            var transactionList = new List<IconTransactionModel>();
+
+
+            for (int i = 0; i < pageCount; i++)
+            {
+                var result = client.GetAsync("https://tracker.icon.foundation/v3/contract/txList?page=" + i + 1 + "&count=100&addr=cx1b97c1abfd001d5cd0b5a3f93f22cccfea77e34e").Result;
+                var responseBody = result.Content.ReadAsStringAsync().Result;
+
+                var iconBetTransactions = JsonConvert.DeserializeObject<IconTransactionModel>(responseBody);
+
+                if (iconBetTransactions.description == "success")
+                {
+                    transactionList.Add(iconBetTransactions);
+                }
+            }
+            transactionListOut = transactionList;
+        }
+
+        public static void InsertTransactionRecords(List<IconTransactionModel> transactionList, int pageCount)
         {
             var fileContents = JsonConvert.SerializeObject(transactionList);
 
@@ -265,16 +318,16 @@ namespace IconBetTransactionHistory
             }
         }
 
-        public static List<IconBetModel> GetTransactionList()
+        public static List<IconTransactionModel> GetTransactionList()
         {
             try
             {
                 var transactionDataFile = File.ReadAllText(TransactionFile);
-                return JsonConvert.DeserializeObject<List<IconBetModel>>(transactionDataFile);
+                return JsonConvert.DeserializeObject<List<IconTransactionModel>>(transactionDataFile);
             }
             catch
             {
-                return new List<IconBetModel>();
+                return new List<IconTransactionModel>();
             }
         }
 
@@ -361,18 +414,28 @@ namespace IconBetTransactionHistory
 
             try
             {
-                var transactionList = new List<IconBetModel>();
+                var transactionList = new List<IconTransactionModel>();
 
                 var currentPageCount = GetPageCount();
+
+                if (currentPageCount == 1)
+                {
+                    GetAll();
+                    currentPageCount = GetPageCount();
+                }
+
                 var transactionDataOnFile = GetTransactionList();
-                GetRecentTransactionList(currentPageCount, out int newPageCount, out transactionList);
 
-                var combinedTransactions = transactionDataOnFile.Concat(transactionList).ToList();
+                var newPageCount = GetNumNewPages(currentPageCount);
+                GetRecentTransactionList(newPageCount, out transactionList);
 
-                LoadTransactions(publicAddress, combinedTransactions, chatId, 10);
+                //add the newest transactions to the front of the list
+                transactionDataOnFile.InsertRange(0, transactionList);
+
+                LoadTransactions(publicAddress, transactionDataOnFile, chatId, 10);
 
                 //update the Data file containing transactions
-                InsertTransactionRecords(combinedTransactions, newPageCount);
+                InsertTransactionRecords(transactionDataOnFile, newPageCount + currentPageCount);
             }
             catch (Exception e)
             {

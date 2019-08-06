@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Numerics;
-using System.Text;
-namespace IconBetTransactionHistory
+﻿namespace IconBetTransactionHistory
 {
     public static class NumericHelper
     {
@@ -23,7 +18,7 @@ namespace IconBetTransactionHistory
             {
                 var wholeNumberLength = padded.Length - FloatingPointLength;
                 var wholeNum = padded.Substring(0, wholeNumberLength);
-                var floating = padded.Substring(wholeNumberLength + 1);
+                var floating = padded.Substring(wholeNumberLength);
 
                 result = wholeNum + "." + floating;
 

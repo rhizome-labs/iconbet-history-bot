@@ -67,7 +67,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BetModel.cs" />
-    <Compile Include="IconBetModel.cs" />
+    <Compile Include="IconTransactionModel.cs" />
     <Compile Include="NumericHelper.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
