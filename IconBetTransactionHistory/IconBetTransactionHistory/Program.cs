@@ -87,6 +87,7 @@ namespace IconBetTransactionHistory
             var transactionsByAddress = (from tranList in transactionList
                                          from dataList in tranList.data
                                          where dataList.fromAddr == publicAddress
+                                         orderby dataList.createDate descending
                                          select dataList.txHash).ToList().Take(numberOfBets);
 
 
