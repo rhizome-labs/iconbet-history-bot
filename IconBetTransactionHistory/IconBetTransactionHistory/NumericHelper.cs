@@ -1,41 +1,18 @@
-﻿namespace IconBetTransactionHistory
+﻿using System.Numerics;
+using System;
+namespace IconBetTransactionHistory
 {
     public static class NumericHelper
     {
-        private static int FloatingPointLength = 18;
-
         public static string Loop2ICX(string bigInt, bool trimTrailing = true)
         {
-            var result = string.Empty;
-            var str = bigInt;
+            BigInteger icxloop = BigInteger.Parse(bigInt);
 
-            var padded = str.PadLeft(FloatingPointLength, '0');
-            if (padded.Length <= FloatingPointLength)
-            {
-                result = "0." + padded;
-            }
-            else
-            {
-                var wholeNumberLength = padded.Length - FloatingPointLength;
-                var wholeNum = padded.Substring(0, wholeNumberLength);
-                var floating = padded.Substring(wholeNumberLength);
+            double result = (double)icxloop;
 
-                result = wholeNum + "." + floating;
+            double icx = result / Math.Pow(10, 18);
 
-            }
-
-            if (trimTrailing)
-            {
-                result = result.TrimEnd(new char[] { '0' });
-            }
-
-            if (result.EndsWith("."))
-            {
-                result += "0";
-            }
-
-            return result;
+            return icx.ToString();
         }
-
     }
 }
