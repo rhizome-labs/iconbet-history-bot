@@ -88,7 +88,7 @@ namespace IconBetTransactionHistory
                                          from dataList in tranList.data
                                          where dataList.fromAddr == publicAddress
                                          orderby dataList.createDate descending
-                                         select dataList.txHash).ToList().Take(numberOfBets);
+                                         select dataList.txHash).Distinct().ToList().Take(numberOfBets);
 
 
             foreach (var transaction in transactionsByAddress)
