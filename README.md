@@ -9,5 +9,6 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-is a Telegram companion to https://iconbet.io built on the ICON blockchain.
+## Introduction
+Iconbet-Companion is a Telegram 'bot' companion to https://iconbet.io built on the ICON blockchain.
 It allows players to review bets made on the DAOlette wheel. More features will be released overtime.
