@@ -1,6 +1,13 @@
-# IconbetCompanion
+<p align="center">
+  <img 
+    src="https://rhizomeicx.com/content/images/size/w2000/2019/05/20190501_RHIZOME-SPACE.jpg" 
+    width="640px"
+    alt="Rhizome logo">
+</p>
 
-![Image description](https://cdn5.telesco.pe/file/ZQ1NNd-lUN6hIJj5RcbYhzKvwrXhWjQNLGrizXnUNWzzBetB_-zRwe96u2xsoRcbovq-zmCsOsIRkJ3vaYR1wBK_JrS_Gm3LK2VSkAT0PJsBn6DmBdYQgvOVdl0oaDTcuQy_NQrUVcmVDI8v8cDyGKdq0DHdji71xNioK3BGLa_6e_iEZENgqv5ovRwL77MfIK86lFQaRndj1y8vKYvfLn84Je7Fj1wdCvCeyawHIRgrfASaMNdW7sx_bXbgL3PYYnAXwiCS_SzruI_zFT41nIdVfh30YBn-uuvKjZntnXqJiv_Sh0OxrSpag4Y_Tl53mCCdImDWYo4igi6cprbw9g.jpg) 
+<h1 align="center">Telegram bot <a href="https://github.com/iconation/Daedric" />: Iconbet-Companion </a> </h1>
+
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 is a Telegram companion to https://iconbet.io built on the ICON blockchain.
 It allows players to review bets made on the DAOlette wheel. More features will be released overtime.
